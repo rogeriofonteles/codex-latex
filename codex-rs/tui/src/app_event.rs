@@ -637,6 +637,7 @@ pub(crate) enum AppEvent {
 
     /// Open the resume picker inside the running TUI session.
     OpenResumePicker,
+    OpenConversationTree,
 
     /// Open the Claude Code migration picker inside the running TUI session.
     OpenExternalAgentConfigMigration,

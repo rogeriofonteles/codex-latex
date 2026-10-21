@@ -97,11 +97,12 @@ pub(crate) fn render_markdown_agent_with_list_spacing(
     list_spacing: ListSpacing,
 ) -> Vec<HyperlinkLine> {
     let rewritten = rewrite_inline_visualizations(markdown_source, inline_visualization_context);
+    let math = crate::latex_render::rewrite(&rewritten.markdown, width);
     let mut code_sources = Vec::new();
     let normalized = if crate::markdown_render::preferences::current().tables {
-        unwrap_markdown_fences_with_sources(&rewritten.markdown, &mut code_sources)
+        unwrap_markdown_fences_with_sources(&math, &mut code_sources)
     } else {
-        Cow::Borrowed(rewritten.markdown.as_ref())
+        Cow::Borrowed(math.as_ref())
     };
     let is_hidden_link_destination = |destination: &str| {
         rewritten.trusted_file_links.contains_key(destination)
@@ -135,7 +136,8 @@ pub(crate) fn render_streaming_markdown_agent_with_links_and_cwd(
     cwd: Option<&Path>,
     list_spacing: ListSpacing,
 ) -> crate::markdown_render::StreamingMarkdownRender {
-    let normalized = normalize_markdown_for_rendering(markdown_source);
+    let math = crate::latex_render::rewrite(markdown_source, width);
+    let normalized = normalize_markdown_for_rendering(&math);
     let mut rendered = crate::markdown_render::render_streaming_markdown_lines_with_width_and_cwd(
         &normalized,
         width,

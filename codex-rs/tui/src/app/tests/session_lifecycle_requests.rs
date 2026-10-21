@@ -999,7 +999,11 @@ async fn in_app_remote_resume_picker_preserves_remote_cwd_filter() -> Result<()>
     let mut tui = crate::tui::test_support::make_test_tui()?;
     tui.set_alt_screen_enabled(/*enabled*/ false);
     tui.pause_events();
-    let mut picker = Box::pin(app.open_resume_picker(&mut tui, &mut app_server));
+    let mut picker = Box::pin(app.open_session_picker(
+        &mut tui,
+        &mut app_server,
+        crate::app::session_picker::SessionPickerKind::Resume,
+    ));
     let params = tokio::time::timeout(std::time::Duration::from_secs(/*secs*/ 5), async {
         tokio::select! {
             biased;

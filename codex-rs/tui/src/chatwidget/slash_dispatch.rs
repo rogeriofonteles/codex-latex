@@ -145,9 +145,11 @@ impl ChatWidget {
                 || (self.bottom_pane.is_task_running()
                     && (self.mcp_startup_status.is_none()
                         || self.input_queue.user_turn_pending_start))))
-            || (matches!(cmd, SlashCommand::Resume | SlashCommand::Cd)
-                && (self.input_queue.user_turn_pending_start
-                    || self.turn_lifecycle.agent_turn_running))
+            || (matches!(
+                cmd,
+                SlashCommand::Resume | SlashCommand::Tree | SlashCommand::Cd
+            ) && (self.input_queue.user_turn_pending_start
+                || self.turn_lifecycle.agent_turn_running))
             || (cmd == SlashCommand::Export && self.input_queue.suppress_queue_autosend)
             || (cmd == SlashCommand::Review
                 && source == SlashCommandDispatchSource::Live
@@ -308,6 +310,13 @@ impl ChatWidget {
             }
             SlashCommand::Resume => {
                 self.app_event_tx.send(AppEvent::OpenResumePicker);
+            }
+            SlashCommand::Tree => {
+                self.app_event_tx.send(AppEvent::OpenConversationTree);
+            }
+            SlashCommand::Branch => {
+                self.app_event_tx
+                    .send(AppEvent::ForkCurrentSession { name: None });
             }
             SlashCommand::Fork => {
                 self.show_session_checkout_picker(ManagedWorktreeMode::Fork, /*name*/ None);
@@ -943,6 +952,11 @@ impl ChatWidget {
                     name: Some(trimmed.to_string()),
                 });
             }
+            SlashCommand::Branch if !trimmed.is_empty() => {
+                self.app_event_tx.send(AppEvent::ForkCurrentSession {
+                    name: Some(trimmed.to_string()),
+                });
+            }
             SlashCommand::Fork if !trimmed.is_empty() => {
                 self.show_session_checkout_picker(
                     ManagedWorktreeMode::Fork,
@@ -1339,6 +1353,8 @@ impl ChatWidget {
             | SlashCommand::Clear
             | SlashCommand::Resume
             | SlashCommand::Fork
+            | SlashCommand::Branch
+            | SlashCommand::Tree
             | SlashCommand::Init
             | SlashCommand::Compact
             | SlashCommand::Review

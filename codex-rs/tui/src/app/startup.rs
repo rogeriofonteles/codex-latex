@@ -988,7 +988,7 @@ See the Codex keymap documentation for supported actions and examples."
             } else {
                 None
             },
-            pending_open_resume_picker: false,
+            pending_session_picker: None,
             pending_working_directory_change: None,
             pending_start_managed_worktree: None,
             pending_managed_worktree_creation: false,
@@ -1222,11 +1222,12 @@ See the Codex keymap documentation for supported actions and examples."
                         break Err(err.into());
                     }
                 }
-                if app.pending_open_resume_picker {
-                    app.pending_open_resume_picker = false;
-                    match Box::pin(
-                        app.open_resume_picker(tui, backends.session_at_mut(displayed_session)),
-                    )
+if let Some(kind) = app.pending_session_picker.take() {
+                    match Box::pin(app.open_session_picker(
+                        tui,
+                        backends.session_at_mut(displayed_session),
+                        kind,
+                    ))
                     .await
                     {
                         Ok(AppRunControl::Continue) => {}

@@ -1366,11 +1366,16 @@ impl<'a, 'policy> Writer<'a, 'policy> {
 
     fn push_text_to_table_cell(&mut self, text: &str) {
         let style = self.inline_styles.last().copied().unwrap_or_default();
-        for (i, line) in text.lines().enumerate() {
-            if i > 0 {
+        for (segment_index, segment) in text.split('\u{e000}').enumerate() {
+            if segment_index > 0 {
                 self.push_table_cell_hard_break();
             }
-            self.push_text_spans_to_table_cell(line, style);
+            for (line_index, line) in segment.lines().enumerate() {
+                if line_index > 0 {
+                    self.push_table_cell_hard_break();
+                }
+                self.push_text_spans_to_table_cell(line, style);
+            }
         }
     }
 

@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project_dir="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)"
+if [[ "${1:-}" == "--plain" ]]; then
+  shift
+  unset CODEX_LATEX_HELPER CODEX_LATEX_CACHE CODEX_LATEX_ZELLIJ
+  exec "$HOME/.local/bin/codex" "$@"
+fi
+export PATH="$project_dir/latex-preview/runtime/bin:$PATH"
+if [[ ! -x "$project_dir/latex-preview/runtime/bin/codex" ]]; then
+  echo "Run $project_dir/latex-preview/install.sh first." >&2
+  exit 1
+fi
+window_mode=false
+if [[ "${1:-}" == "--window" ]]; then
+  window_mode=true
+  shift
+fi
+if [[ "${1:-}" == "--demo" ]]; then
+  shift
+  command=("$project_dir/latex-preview/.venv/bin/python" "$project_dir/latex-preview/demo.py")
+else
+  command=("$project_dir/latex-preview/runtime/bin/codex" "$@")
+  # Keep lifecycle badges and explicit pane registration when using the PTY
+  # bridge. PATH above makes the launcher select our LaTeX-enabled binary.
+  if [[ -n "${ZELLIJ_PANE_ID:-}" && "$window_mode" == false ]] && command -v zellij-codex-launch >/dev/null 2>&1; then
+    command=(zellij-codex-launch "$@")
+  fi
+fi
+if [[ -n "${ZELLIJ_PANE_ID:-}" && "$window_mode" == false ]]; then
+  # Wayland terminals may export a pointer-sized WINDOWID, not an X11 XID.
+  if PYTHONPATH="$project_dir/latex-preview${PYTHONPATH:+:$PYTHONPATH}" "$project_dir/latex-preview/.venv/bin/python" -c '
+import os
+from bridge import x11_window_id
+from Xlib import display
+try:
+    window_id = x11_window_id(os.environ.get("WINDOWID"))
+    connection = display.Display()
+    connection.create_resource_object("window", window_id).get_geometry()
+    connection.close()
+except Exception:
+    raise SystemExit(1)
+' 2>/dev/null; then
+    export CODEX_LATEX_ZELLIJ=1
+    exec "$project_dir/latex-preview/.venv/bin/python" "$project_dir/latex-preview/bridge.py" "${command[@]}"
+  fi
+fi
+if [[ "$window_mode" == false ]]; then
+  echo "Inline LaTeX needs an X11/XWayland terminal. Open a new XWayland Alacritty window and a new Zellij session, or use codex-latex --window. Continuing without graphical formulas." >&2
+  unset CODEX_LATEX_HELPER CODEX_LATEX_CACHE CODEX_LATEX_ZELLIJ
+  exec "${command[@]}"
+fi
+unset CODEX_LATEX_ZELLIJ ZELLIJ ZELLIJ_PANE_ID ZELLIJ_SESSION_NAME
+# Without Wayland connection variables, Alacritty uses X11 (XWayland on Wayland).
+exec env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET -u WINDOWID alacritty \
+  --class CodexLatex,CodexLatex --title 'Codex · LaTeX' \
+  -o 'window.padding.x=0' -o 'window.padding.y=0' -o 'window.dynamic_padding=false' \
+  -o 'window.dimensions.columns=120' -o 'window.dimensions.lines=40' \
+  -o 'scrolling.history=0' \
+  -e "$project_dir/latex-preview/.venv/bin/python" "$project_dir/latex-preview/bridge.py" \
+     "${command[@]}"

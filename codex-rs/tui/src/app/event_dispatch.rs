@@ -487,8 +487,11 @@ impl App {
                 )
                 .await;
             }
+            AppEvent::OpenConversationTree => {
+                self.pending_session_picker = Some(session_picker::SessionPickerKind::Tree);
+            }
             AppEvent::OpenResumePicker => {
-                self.pending_open_resume_picker = true;
+                self.pending_session_picker = Some(session_picker::SessionPickerKind::Resume);
             }
             AppEvent::OpenExternalAgentConfigMigration => {
                 let cwd = if self.chat_widget.thread_id().is_some()

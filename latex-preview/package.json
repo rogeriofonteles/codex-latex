@@ -1,0 +1,1 @@
+{"name":"codex-latex-renderer","version":"0.1.0","private":true,"dependencies":{"mathjax-full":"3.2.2","sharp":"0.35.4"},"overrides":{"@xmldom/xmldom":"0.9.12"}}
