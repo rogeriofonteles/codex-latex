@@ -1,7 +1,9 @@
 # Codex for slow SSH terminals
 
-This checkout starts from OpenAI Codex `rust-v0.162.1`, on branch
-`fix/ssh-terminal-timeout`.
+This checkout uses `https://github.com/rogeriofonteles/codex-latex.git` on
+`main`, with the SSH terminal timeout fix integrated into the LaTeX fork.
+The OpenAI repository is retained as the `upstream` remote. The original
+0.162.1 fix and its build lockfile remain on `fix/ssh-terminal-timeout`.
 
 The upstream Unix startup probe has a 250 ms deadline. If the cursor-position
 response arrives later, startup uses `(0, 0)` instead of the actual cursor position.
@@ -37,17 +39,15 @@ cd ~/code/codex/codex-rs
 ~/.cargo/bin/cargo test --profile dev-small -p codex-tui --lib terminal_probe::
 ```
 
-The build uses `dev-small` to keep local rebuilds practical. Bash and Zsh alias
-`codex` to `~/code/codex/bin/codex`, and `~/.local/bin/codex` points to the same
-launcher. `codex-stock` remains available for the official installation.
+The build uses `dev-small` to keep local rebuilds practical and builds both the
+CLI and its matching code-mode helper. `~/.local/bin/codex-real` points to
+`~/code/codex/bin/codex`; the Zellij wrapper and fish functions continue to use
+that launcher. `codex-stock` remains available for the official installation.
 
 This changes the terminal UI in new CLI sessions. Restart an already-running
-Codex CLI to use the customized version. The shared app-server daemon does not
-render the terminal UI and can continue using the official binary.
+Codex CLI to use the rebuilt version. The shared app-server daemon does not
+render the terminal UI and can continue using its existing binary.
 
-To undo the command selection, remove the `Codex SSH terminal fix` alias block
-from `~/.bashrc` and `~/.zshrc`, then restore the original symlink:
-
-```sh
-ln -sfn ~/.codex/packages/standalone/current/bin/codex ~/.local/bin/codex
-```
+The SSH fix changes terminal response deadlines; it does not add graphical
+LaTeX support over SSH. For the fork's optional graphical launcher and its
+separate dependencies, follow [latex-preview/README.md](latex-preview/README.md).

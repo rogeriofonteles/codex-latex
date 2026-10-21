@@ -9,6 +9,12 @@ If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="http
 
 ---
 
+## Fork features
+
+This fork includes [inline LaTeX rendering](latex-preview/README.md) and the
+[SSH terminal synchronization fix](SSH-FIX.md). The SSH-aware launcher is
+`bin/codex`; rebuild it and its matching helper with `scripts/build-ssh.sh`.
+
 ## Quickstart
 
 ### Installing and running Codex CLI

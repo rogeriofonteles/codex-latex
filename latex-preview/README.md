@@ -52,7 +52,7 @@ The installer selects a suitable `node` from PATH or `~/.nvm/versions/node`. Aft
 The stock `codex` updater does **not** update this fork. Keep the working version until a new one is verified.
 
 1. Confirm `git status --short` is clean and make a backup branch, for example `git branch backup/latex-working` (choose a fresh name on later updates).
-2. Prefer a release matching your installed official `codex --version`, so its code-mode helper can be reused. Choose an explicit upstream release tag from `https://github.com/openai/codex/releases` and fetch it: `git fetch origin tag rust-vVERSION`.
+2. Ensure `upstream` points to `https://github.com/openai/codex.git` (add it with `git remote add upstream https://github.com/openai/codex.git` if needed). Prefer a release matching your installed official `codex --version`, so its code-mode helper can be reused. Choose an explicit upstream release tag from `https://github.com/openai/codex/releases` and fetch it: `git fetch upstream tag rust-vVERSION`.
 3. Replay the local commits on that release:
 
    ```sh
