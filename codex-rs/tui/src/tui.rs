@@ -491,8 +491,7 @@ pub(crate) fn init() -> Result<InitializedTerminal> {
         } else {
             StartupKeyboardEnhancementProbe::Query
         };
-        match crate::terminal_probe::startup(crate::terminal_probe::DEFAULT_TIMEOUT, keyboard_probe)
-        {
+        match crate::terminal_probe::startup(crate::terminal_probe::timeout(), keyboard_probe) {
             Ok(probe) => {
                 tracing::info!(
                     duration_ms = %started_at.elapsed().as_millis(),
@@ -585,7 +584,7 @@ fn detect_keyboard_enhancement_supported() -> bool {
 #[cfg(windows)]
 fn probe_windows_default_colors() {
     let started_at = std::time::Instant::now();
-    match crate::terminal_probe::default_colors(crate::terminal_probe::DEFAULT_TIMEOUT) {
+    match crate::terminal_probe::default_colors(crate::terminal_probe::timeout()) {
         Ok(colors) => {
             tracing::info!(
                 duration_ms = %started_at.elapsed().as_millis(),

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+codex_launcher="$(readlink -f -- "${BASH_SOURCE[0]}")"
+codex_root="$(cd -- "$(dirname -- "$codex_launcher")/.." && pwd)"
+# Also covers tmux/screen sessions where SSH environment variables have been lost.
+export CODEX_TERMINAL_TIMEOUT_MS="${CODEX_TERMINAL_TIMEOUT_MS:-5000}"
+exec "$codex_root/codex-rs/target/dev-small/codex" "$@"

@@ -1,8 +1,7 @@
-//! Short, best-effort terminal response probes for TUI startup and resume.
+//! Bounded, best-effort terminal response probes for TUI startup and resume.
 //!
-//! Crossterm's public helpers wait up to two seconds for terminal responses. That is too long for
-//! TUI startup and resume, where unsupported terminals should simply fall back to conservative
-//! defaults.
+//! Local terminals use a short response deadline; slow SSH connections use a longer bounded
+//! deadline so delayed cursor and color replies do not force incorrect rendering defaults.
 //! This module sends the same kinds of optional terminal queries with a caller-provided deadline,
 //! prefers duplicated stdio handles, falls back to the controlling terminal path when stdio is
 //! unavailable, and reports `None` when a response is unavailable.
@@ -25,6 +24,52 @@ mod windows_replay;
 
 /// Default wall-clock budget for each terminal probe or startup probe group.
 pub(crate) const DEFAULT_TIMEOUT: Duration = Duration::from_millis(/*millis*/ 250);
+
+/// Allow slow SSH terminals to finish replying before falling back to origin and default colors.
+/// An explicit override also covers SSH sessions launched through terminal multiplexers that
+/// do not retain the SSH environment variables. Fast terminals return as soon as replies arrive.
+pub(crate) fn timeout() -> Duration {
+    probe_timeout(
+        std::env::var("CODEX_TERMINAL_TIMEOUT_MS").ok().as_deref(),
+        std::env::var_os("SSH_TTY").is_some()
+            || std::env::var_os("SSH_CONNECTION").is_some()
+            || std::env::var_os("SSH_CLIENT").is_some(),
+    )
+}
+
+fn probe_timeout(override_ms: Option<&str>, over_ssh: bool) -> Duration {
+    override_ms
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|millis| (1..=60_000).contains(millis))
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| {
+            if over_ssh {
+                Duration::from_secs(5)
+            } else {
+                DEFAULT_TIMEOUT
+            }
+        })
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+
+    #[test]
+    fn slow_ssh_terminals_have_a_longer_deadline() {
+        assert_eq!(probe_timeout(None, true), Duration::from_secs(5));
+        assert_eq!(probe_timeout(None, false), DEFAULT_TIMEOUT);
+        assert_eq!(probe_timeout(Some("8000"), false), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn invalid_overrides_use_the_terminal_default() {
+        for value in ["", "abc", "0", "-1", "60001", "18446744073709551615"] {
+            assert_eq!(probe_timeout(Some(value), true), Duration::from_secs(5));
+            assert_eq!(probe_timeout(Some(value), false), DEFAULT_TIMEOUT);
+        }
+    }
+}
 
 /// Default terminal foreground and background colors reported by OSC 10 and OSC 11.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -566,6 +611,41 @@ mod imp {
             let reader: OwnedFd = reader.into();
             let writer: OwnedFd = writer.into();
             Tty::new(reader.into(), writer.into()).expect("create terminal probe")
+        }
+
+        #[test]
+        fn startup_probe_accepts_terminal_replies_delayed_more_than_one_second() {
+            let (reader, mut writer) = UnixStream::pair().expect("create terminal input pair");
+            let probe_writer: OwnedFd = writer.try_clone().expect("clone writer").into();
+            let reader: OwnedFd = reader.into();
+            let mut tty = Tty::new(reader.into(), probe_writer.into()).expect("create probe");
+            let reply = std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(1_200));
+                writer
+                    .write_all(b"typed\x1B[20;10R\x1B]11;rgb:1111/1111/1111\x07\x1B[?64;1;2c\x1B]10;rgb:eeee/eeee/eeee\x1B\\\x1B[?7u")
+                    .expect("send delayed terminal replies");
+            });
+            let mut buffer = Vec::new();
+            let probe = read_startup_probe(
+                &mut tty,
+                super::super::probe_timeout(None, true),
+                StartupKeyboardEnhancementProbe::Query,
+                /*query_identity*/ false,
+                &mut buffer,
+            )
+            .expect("read delayed terminal responses");
+            reply.join().expect("join terminal emulator");
+
+            assert_eq!(probe.cursor_position, Some(Position { x: 9, y: 19 }));
+            assert_eq!(
+                probe.default_colors,
+                Some(DefaultColors {
+                    fg: (238, 238, 238),
+                    bg: (17, 17, 17),
+                })
+            );
+            assert_eq!(probe.keyboard_enhancement_supported, Some(true));
+            assert!(startup_replay_input(&buffer).starts_with(b"typed"));
         }
 
         #[test]

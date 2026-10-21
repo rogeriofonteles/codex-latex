@@ -201,7 +201,7 @@ mod imp {
     /// collapses I/O errors and missing responses into the same fallback path used for terminals
     /// that simply do not support OSC 10/11 queries.
     fn query_default_colors() -> Option<DefaultColors> {
-        crate::terminal_probe::default_colors(crate::terminal_probe::DEFAULT_TIMEOUT)
+        crate::terminal_probe::default_colors(crate::terminal_probe::timeout())
             .ok()
             .flatten()
             .map(|colors| DefaultColors {
