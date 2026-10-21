@@ -41,7 +41,10 @@ impl App {
                 self.chat_widget.fork_in_progress = false;
                 return Ok(AppRunControl::Continue);
             }
-            AppEvent::ForkCurrentSession { name: None }
+            AppEvent::ForkCurrentSession {
+                name: None,
+                initial_user_message: None,
+            }
         } else {
             event
         };
@@ -562,7 +565,9 @@ impl App {
             AppEvent::DeleteCurrentThread => {
                 return self.delete_current_thread(tui, app_server).await;
             }
-            AppEvent::ForkCurrentSession { name } => {
+            AppEvent::ForkCurrentSession { name, initial_user_message } => {
+                let title_prompt = initial_user_message.as_ref()
+                    .map(|message| super::thread_title::thread_title_prompt(&message.text));
                 let from_locked_thread = self.chat_widget.is_external_writer_view();
                 let source = if from_agents_overview {
                     "agents_overview_shortcut"
@@ -649,11 +654,19 @@ impl App {
                                     tui,
                                     forked,
                                     ThreadAttachPresentation::SessionLineage,
-                                    /*initial_user_message*/ None,
+                                    initial_user_message,
                                 )
                                 .await
                             {
                                 Ok(()) => {
+                                    if let Some(prompt) = title_prompt {
+                                        self.generate_thread_title(
+                                            app_server,
+                                            self.chat_widget.thread_id().expect("attached fork"),
+                                            ThreadTitleDestination::Automatic,
+                                            prompt,
+                                        );
+                                    }
                                     if selected_profile.is_some() {
                                         self.adopt_inherited_server_selection();
                                     }
@@ -3008,6 +3021,7 @@ impl App {
                 thread_id,
                 destination,
                 prompt,
+                expected_name,
                 effort,
                 result,
             } => {
@@ -3016,6 +3030,7 @@ impl App {
                     thread_id,
                     destination,
                     prompt,
+                    expected_name,
                     effort,
                     result,
                     cancellation,
@@ -3026,6 +3041,7 @@ impl App {
                 thread_id,
                 temporary_thread_id,
                 destination,
+                expected_name,
                 result,
             } => {
                 self.temporary_structured_requests
@@ -3042,7 +3058,7 @@ impl App {
                             && let Ok(thread) = app_server
                                 .thread_read(thread_id, /*include_turns*/ false)
                                 .await
-                            && thread.name.is_none()
+                            && thread.name == expected_name
                         {
                             match app_server.thread_set_name(thread_id, title.clone()).await {
                                 Ok(()) => self

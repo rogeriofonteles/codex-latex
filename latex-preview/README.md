@@ -110,10 +110,14 @@ To uninstall the launcher, remove only `~/.local/bin/codex-latex`. The project c
 
 ## Conversation branches
 
-Use `/branch [name]` to create and open a saved child conversation from the
-current chat. The child inherits the history up to that point and continues
-independently in the same working directory. You can branch again inside a
-child, or return to its parent and create additional sibling conversations.
+Use `/branch [prompt]` to create and open a saved child conversation from the
+current chat. For example, `/branch Explain the cache invalidation` starts that
+request immediately in the child and generates its title from the prompt. The
+generated title updates the Zellij pane name while preserving its status badge.
+Bare `/branch` opens a child ready for your next message. The child inherits the
+history up to that point and continues independently in the same working
+directory. You can branch again inside a child, or return to its parent and
+create additional sibling conversations.
 Use `/rename` to change the current conversation's title.
 
 Use `/tree` to browse the current chat's family of saved, non-archived

@@ -416,7 +416,10 @@ async fn custom_permission_selection_uses_server_definition_and_preserves_state_
         app.handle_event(
             &mut tui,
             &mut server,
-            AppEvent::ForkCurrentSession { name: None },
+            AppEvent::ForkCurrentSession {
+                name: None,
+                initial_user_message: None,
+            },
         )
         .await?;
         assert_ne!(app.chat_widget.thread_id(), previous_thread_id);

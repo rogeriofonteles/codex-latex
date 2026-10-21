@@ -3269,7 +3269,10 @@ async fn slash_fork_requests_current_fork() {
 
     assert_matches!(
         rx.try_recv(),
-        Ok(AppEvent::ForkCurrentSession { name: None })
+        Ok(AppEvent::ForkCurrentSession {
+            name: None,
+            initial_user_message: None
+        })
     );
 }
 
@@ -3286,8 +3289,7 @@ async fn slash_fork_with_name_requests_named_fork() {
     assert_matches!(
         rx.try_recv(),
         Ok(AppEvent::ForkCurrentSession {
-            name: Some(name)
-        }) if name == "Add User"
+            name: Some(name), initial_user_message: None }) if name == "Add User"
     );
 }
 
@@ -3888,13 +3890,16 @@ async fn slash_branch_requests_current_fork() {
 
     assert_matches!(
         rx.try_recv(),
-        Ok(AppEvent::ForkCurrentSession { name: None })
+        Ok(AppEvent::ForkCurrentSession {
+            name: None,
+            initial_user_message: None
+        })
     );
 }
 
 #[tokio::test]
-async fn slash_branch_with_name_requests_named_fork() {
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+async fn slash_branch_with_prompt_submits_only_to_unnamed_fork() {
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.bottom_pane
         .set_composer_text("/branch   Add User  ".to_string(), Vec::new(), Vec::new());
 
@@ -3905,9 +3910,11 @@ async fn slash_branch_with_name_requests_named_fork() {
     assert_matches!(
         rx.try_recv(),
         Ok(AppEvent::ForkCurrentSession {
-            name: Some(name)
-        }) if name == "Add User"
+            name: None,
+            initial_user_message: Some(message),
+        }) if message.text.trim() == "Add User"
     );
+    assert_matches!(op_rx.try_recv(), Err(TryRecvError::Empty));
 }
 
 #[tokio::test]

@@ -329,7 +329,7 @@ pub(crate) async fn run(
             } else {
                 frame.render_widget_ref(&Paragraph::new("Loading saved conversations…"), body);
             }
-            frame.render_widget_ref(&Paragraph::new("↑/↓ select · ←/→ collapse/expand · Enter open · Esc back\n/branch [name] creates a child of the current chat"), footer);
+            frame.render_widget_ref(&Paragraph::new("↑/↓ select · ←/→ collapse/expand · Enter open · Esc back\n/branch [prompt] creates a child and starts your prompt"), footer);
         })?;
         tokio::select! {
             result = &mut loading, if tree.is_none() => {

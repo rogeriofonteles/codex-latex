@@ -92,15 +92,22 @@ fn bounds_the_entire_title_prompt_for_dense_unicode() {
 #[tokio::test]
 async fn automatic_thread_title_respects_origin_metadata_after_switching() -> color_eyre::Result<()>
 {
-    for (switch_threads, manual_name) in [
-        (true, None),
-        (true, Some("Manual title")),
-        (false, Some("Manual title")),
+    for (switch_threads, inherited_name, manual_name) in [
+        (true, None, None),
+        (true, None, Some("Manual title")),
+        (false, None, Some("Manual title")),
+        (true, Some("Parent task"), None),
+        (true, Some("Parent task"), Some("Manual title")),
     ] {
         let mut app = make_test_app().await;
         let mut app_server = crate::start_embedded_app_server_for_picker(&app.config).await?;
         let started = app_server.start_thread(&app.config).await?;
         let thread_id = started.session.thread_id;
+        if let Some(name) = inherited_name {
+            app_server
+                .thread_set_name(thread_id, name.to_string())
+                .await?;
+        }
         let user_message = serde_json::from_str(
             r#"{"type":"message","role":"user","content":[{"type":"input_text","text":"Fix the login timeout"}]}"#,
         )?;
@@ -141,6 +148,7 @@ async fn automatic_thread_title_respects_origin_metadata_after_switching() -> co
                 thread_id,
                 temporary_thread_id: codex_protocol::ThreadId::new(),
                 destination: ThreadTitleDestination::Automatic,
+                expected_name: inherited_name.map(str::to_string),
                 result: Ok(r#"{"title":"Generated title"}"#.to_string()),
             },
         )
@@ -484,6 +492,7 @@ async fn canceled_thread_title_ignores_late_start_and_completion() -> color_eyre
         thread_id,
         destination,
         "prompt".to_string(),
+        /*expected_name*/ None,
         /*effort*/ None,
         Ok(temporary_thread_id.to_string()),
         cancellation.clone(),
@@ -498,6 +507,7 @@ async fn canceled_thread_title_ignores_late_start_and_completion() -> color_eyre
             thread_id,
             temporary_thread_id,
             destination,
+            expected_name: None,
             result: Ok(r#"{"title":"Late automatic title"}"#.to_string()),
         },
     )
@@ -788,6 +798,7 @@ async fn failed_thread_title_requests_are_removed() -> color_eyre::Result<()> {
         thread_id,
         ThreadTitleDestination::Automatic,
         "prompt".to_string(),
+        /*expected_name*/ None,
         /*effort*/ None,
         Err("startup failed".to_string()),
         CancellationToken::new(),
@@ -797,6 +808,7 @@ async fn failed_thread_title_requests_are_removed() -> color_eyre::Result<()> {
         thread_id,
         suggestion,
         "prompt".to_string(),
+        /*expected_name*/ None,
         /*effort*/ None,
         Ok("invalid-thread-id".to_string()),
         CancellationToken::new(),
@@ -816,6 +828,7 @@ async fn failed_thread_title_requests_are_removed() -> color_eyre::Result<()> {
             thread_id,
             temporary_thread_id: codex_protocol::ThreadId::new(),
             destination: ThreadTitleDestination::Automatic,
+            expected_name: None,
             result: Err("generation failed".to_string()),
         },
     )

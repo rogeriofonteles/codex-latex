@@ -63,7 +63,15 @@ async fn external_writer_fork_shortcut_respects_input_ownership() -> Result<()> 
         app.handle_tui_event(&mut tui, &mut server, TuiEvent::Key(key))
             .await?;
         let forks = std::iter::from_fn(|| events.try_recv().ok())
-            .filter(|event| matches!(event, AppEvent::ForkCurrentSession { name: None }))
+            .filter(|event| {
+                matches!(
+                    event,
+                    AppEvent::ForkCurrentSession {
+                        name: None,
+                        initial_user_message: None
+                    }
+                )
+            })
             .count();
         assert_eq!(forks, usize::from(expected), "{key:?}");
         assert_eq!(app.chat_widget.composer_text_with_pending(), "f");
@@ -176,7 +184,13 @@ async fn external_writer_fork_opens_editable_thread_without_taking_source_lease(
     )
     .await?;
     let event = events.try_recv()?;
-    assert!(matches!(event, AppEvent::ForkCurrentSession { name: None }));
+    assert!(matches!(
+        event,
+        AppEvent::ForkCurrentSession {
+            name: None,
+            initial_user_message: None
+        }
+    ));
     Box::pin(app.handle_event(&mut tui, &mut server, event)).await?;
 
     assert_eq!(app.chat_widget.capture_thread_input_state(), retained_input);
@@ -247,7 +261,13 @@ async fn external_writer_fork_failure_keeps_the_locked_view_and_draft() -> Resul
     )
     .await?;
     let event = events.try_recv()?;
-    assert!(matches!(event, AppEvent::ForkCurrentSession { name: None }));
+    assert!(matches!(
+        event,
+        AppEvent::ForkCurrentSession {
+            name: None,
+            initial_user_message: None
+        }
+    ));
     Box::pin(app.handle_event(&mut tui, &mut server, event)).await?;
     assert_eq!(app.chat_widget.thread_id(), Some(thread_id));
     assert!(app.chat_widget.is_external_writer_view());

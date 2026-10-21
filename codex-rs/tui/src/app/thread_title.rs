@@ -1,7 +1,7 @@
 //! Structured-output schema and normalization for generated TUI thread titles.
 //!
 //! Automatic titles are persisted only after generation, including for inactive threads;
-//! the originating thread's saved name takes precedence over an automatic result. Manual
+//! a changed saved name takes precedence over an automatic result. Manual
 //! renames cancel pending requests; canceled events cannot affect newer requests.
 
 use super::App;
@@ -99,6 +99,7 @@ impl App {
             mcp_server_names: config.mcp_servers.get().keys().cloned().collect(),
         };
 
+        let expected_name = self.chat_widget.thread_name();
         let event_sender = self.app_event_tx.clone();
         tokio::spawn(async move {
             let result = start_temporary_thread(&request_handle, options)
@@ -111,6 +112,7 @@ impl App {
                 thread_id,
                 destination,
                 prompt,
+                expected_name,
                 effort,
                 result,
             });
@@ -125,6 +127,7 @@ impl App {
         thread_id: ThreadId,
         destination: ThreadTitleDestination,
         prompt: String,
+        expected_name: Option<String>,
         effort: Option<ReasoningEffort>,
         result: Result<String, String>,
         cancellation: CancellationToken,
@@ -185,6 +188,7 @@ impl App {
                 thread_id,
                 temporary_thread_id,
                 destination,
+                expected_name,
                 result,
             });
         });

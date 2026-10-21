@@ -315,8 +315,10 @@ impl ChatWidget {
                 self.app_event_tx.send(AppEvent::OpenConversationTree);
             }
             SlashCommand::Branch => {
-                self.app_event_tx
-                    .send(AppEvent::ForkCurrentSession { name: None });
+                self.app_event_tx.send(AppEvent::ForkCurrentSession {
+                    name: None,
+                    initial_user_message: None,
+                });
             }
             SlashCommand::Fork => {
                 self.show_session_checkout_picker(ManagedWorktreeMode::Fork, /*name*/ None);
@@ -953,8 +955,17 @@ impl ChatWidget {
                 });
             }
             SlashCommand::Branch if !trimmed.is_empty() => {
+                let message = self.prepared_inline_user_message(
+                    args,
+                    text_elements,
+                    local_images,
+                    remote_image_urls,
+                    mention_bindings,
+                    source,
+                );
                 self.app_event_tx.send(AppEvent::ForkCurrentSession {
-                    name: Some(trimmed.to_string()),
+                    name: None,
+                    initial_user_message: Some(message),
                 });
             }
             SlashCommand::Fork if !trimmed.is_empty() => {

@@ -11,15 +11,24 @@ use pretty_assertions::assert_eq;
 
 #[tokio::test]
 async fn remote_fork_dispatch_preserves_server_workspace_roots() -> Result<()> {
-    check_fork_dispatch(ThreadParamsMode::Remote).await
+    check_fork_dispatch(ThreadParamsMode::Remote, None).await
 }
 
 #[tokio::test]
 async fn local_daemon_fork_dispatch_preserves_idle_source_and_children() -> Result<()> {
-    check_fork_dispatch(ThreadParamsMode::Embedded).await
+    check_fork_dispatch(ThreadParamsMode::Embedded, None).await
 }
 
-async fn check_fork_dispatch(mode: ThreadParamsMode) -> Result<()> {
+#[tokio::test]
+async fn branch_dispatch_submits_prompt_once_to_unnamed_child() -> Result<()> {
+    check_fork_dispatch(
+        ThreadParamsMode::Embedded,
+        Some("Explain the cache invalidation"),
+    )
+    .await
+}
+
+async fn check_fork_dispatch(mode: ThreadParamsMode, prompt: Option<&str>) -> Result<()> {
     let mut app = Box::pin(make_test_app()).await;
     let client_home = tempdir()?;
     let server_home = tempdir()?;
@@ -107,14 +116,50 @@ async fn check_fork_dispatch(mode: ThreadParamsMode) -> Result<()> {
     app.upsert_agent_picker_thread(
         child_id, /*agent_nickname*/ None, /*agent_role*/ None, /*is_closed*/ false,
     );
+    if prompt.is_some() {
+        server
+            .thread_set_name(source_thread_id, "Parent task".to_string())
+            .await?;
+    }
+    let (event_tx, mut events) = tokio::sync::mpsc::unbounded_channel();
+    app.app_event_tx = AppEventSender::new(event_tx);
     Box::pin(app.handle_event(
         &mut tui,
         &mut server,
-        AppEvent::ForkCurrentSession { name: None },
+        AppEvent::ForkCurrentSession {
+            name: None,
+            initial_user_message: prompt.map(crate::chatwidget::UserMessage::from),
+        },
     ))
     .await?;
 
     assert_ne!(app.chat_widget.thread_id(), Some(source_thread_id));
+    assert_eq!(
+        app.chat_widget.thread_name(),
+        prompt.map(|_| "Parent task".to_string())
+    );
+    assert_eq!(
+        app.pending_thread_titles.contains_key(&(
+            app.chat_widget.thread_id().expect("attached fork"),
+            ThreadTitleDestination::Automatic,
+        )),
+        prompt.is_some()
+    );
+    let submitted: Vec<_> = std::iter::from_fn(|| events.try_recv().ok())
+        .filter_map(|event| match event {
+            AppEvent::CodexOp(Op::UserTurn { items, .. }) => Some(items),
+            _ => None,
+        })
+        .collect();
+    if let Some(prompt) = prompt {
+        assert_eq!(submitted.len(), 1);
+        assert!(submitted[0].iter().any(|item| matches!(
+            item, codex_app_server_protocol::UserInput::Text { text, .. }
+            if text == prompt
+        )));
+    } else {
+        assert!(submitted.is_empty());
+    }
     assert_eq!(app.chat_widget.config_ref().workspace_roots, expected_roots);
     let fork_roots: Vec<_> = recorded_params(&requests, "thread/fork")
         .into_iter()

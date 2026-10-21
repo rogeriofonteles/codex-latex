@@ -107,7 +107,7 @@ impl SlashCommand {
             SlashCommand::Delete => "permanently delete this session",
             SlashCommand::Clear => "clear the terminal and start a new chat",
             SlashCommand::Fork => "fork the current chat",
-            SlashCommand::Branch => "create a named child conversation from this chat",
+            SlashCommand::Branch => "branch this chat and start with an optional prompt",
             SlashCommand::Tree => "browse the current chat's conversation tree",
             SlashCommand::Worktree => "start or continue a conversation in a new worktree",
             SlashCommand::App => "continue this session in the Desktop app",

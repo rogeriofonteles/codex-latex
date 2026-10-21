@@ -264,7 +264,7 @@ pub(crate) enum TranscriptExportDestination {
 /// Deliver a generated title to its originating automatic rename or editable prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum ThreadTitleDestination {
-    /// Name the thread only if the user has not already named it.
+    /// Name the thread only while its saved name matches the request's initial name.
     Automatic,
     /// Prefill only the still-active rename prompt with the matching request ID.
     RenameSuggestion { request_id: Uuid },
@@ -369,6 +369,7 @@ pub(crate) enum AppEvent {
         thread_id: ThreadId,
         destination: ThreadTitleDestination,
         prompt: String,
+        expected_name: Option<String>,
         effort: Option<ReasoningEffort>,
         result: Result<String, String>,
     },
@@ -378,6 +379,7 @@ pub(crate) enum AppEvent {
         thread_id: ThreadId,
         temporary_thread_id: ThreadId,
         destination: ThreadTitleDestination,
+        expected_name: Option<String>,
         result: Result<String, String>,
     },
     /// Interrupt a task directly from the shared dashboard.
@@ -651,9 +653,10 @@ pub(crate) enum AppEvent {
     /// Permanently delete the current active main thread and exit after it succeeds.
     DeleteCurrentThread,
 
-    /// Fork the current session into a new thread, optionally assigning it a name.
+    /// Fork the current session, optionally naming it or submitting an initial message.
     ForkCurrentSession {
         name: Option<String>,
+        initial_user_message: Option<crate::chatwidget::UserMessage>,
     },
 
     /// Revert before a selected prompt, retaining its identity across queued history pages.

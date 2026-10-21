@@ -1134,9 +1134,8 @@ impl App {
         presentation: ThreadAttachPresentation,
         initial_user_message: Option<crate::chatwidget::UserMessage>,
     ) -> Result<()> {
-        // Initial messages are for freshly attached primary threads only. Thread switches and
-        // resume/fork flows pass `None` so they cannot replay old history and then auto-submit a new
-        // user turn by accident.
+        // Only explicit submissions carry an initial message across a thread switch;
+        // replayed history must never submit a new turn.
         if let Some(mut receiver) = self.active_thread_rx.take() {
             while let Ok(event) = receiver.try_recv() {
                 self.handle_thread_event_now_recovering_file_changes(event)
