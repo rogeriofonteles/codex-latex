@@ -40,7 +40,9 @@ cd ~/code/codex/codex-rs
 ```
 
 The build uses `dev-small` to keep local rebuilds practical and builds both the
-CLI and its matching code-mode helper. `~/.local/bin/codex-real` points to
+CLI and its matching code-mode helper. It uses the repository's pinned,
+checksum-verified Codex V8 artifacts for the helper build and preserves the
+checked-in lockfile. `~/.local/bin/codex-real` points to
 `~/code/codex/bin/codex`; the Zellij wrapper and fish functions continue to use
 that launcher. `codex-stock` remains available for the official installation.
 
