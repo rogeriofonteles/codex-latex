@@ -320,6 +320,11 @@ impl ChatWidget {
                     initial_user_message: None,
                 });
             }
+            SlashCommand::Sibling => {
+                self.app_event_tx.send(AppEvent::CreateSibling {
+                    initial_user_message: None,
+                });
+            }
             SlashCommand::Fork => {
                 self.show_session_checkout_picker(ManagedWorktreeMode::Fork, /*name*/ None);
             }
@@ -968,6 +973,19 @@ impl ChatWidget {
                     initial_user_message: Some(message),
                 });
             }
+            SlashCommand::Sibling if !trimmed.is_empty() => {
+                let message = self.prepared_inline_user_message(
+                    args,
+                    text_elements,
+                    local_images,
+                    remote_image_urls,
+                    mention_bindings,
+                    source,
+                );
+                self.app_event_tx.send(AppEvent::CreateSibling {
+                    initial_user_message: Some(message),
+                });
+            }
             SlashCommand::Fork if !trimmed.is_empty() => {
                 self.show_session_checkout_picker(
                     ManagedWorktreeMode::Fork,
@@ -1365,6 +1383,7 @@ impl ChatWidget {
             | SlashCommand::Resume
             | SlashCommand::Fork
             | SlashCommand::Branch
+            | SlashCommand::Sibling
             | SlashCommand::Tree
             | SlashCommand::Init
             | SlashCommand::Compact

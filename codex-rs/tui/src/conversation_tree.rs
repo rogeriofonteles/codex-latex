@@ -49,7 +49,16 @@ impl Tree {
     /// Scope the forest to the current chat's fork family, including its ancestors
     /// and siblings. Keep edges through missing parents so orphaned siblings remain
     /// together, and use a visited set to tolerate malformed ancestry cycles.
+    #[cfg(test)]
     fn for_conversation(nodes: Vec<Node>, current: ThreadId) -> Self {
+        Self::for_conversation_with_roots(nodes, current, &[])
+    }
+
+    fn for_conversation_with_roots(
+        nodes: Vec<Node>,
+        current: ThreadId,
+        peer_roots: &[ThreadId],
+    ) -> Self {
         let mut neighbors: HashMap<ThreadId, Vec<ThreadId>> = HashMap::new();
         for node in &nodes {
             if let Some(parent) = node.parent {
@@ -61,6 +70,22 @@ impl Tree {
                     .entry(parent)
                     .or_default()
                     .push(node.target.thread_id);
+            }
+        }
+        let roots: HashSet<_> = nodes
+            .iter()
+            .filter(|node| node.parent.is_none())
+            .map(|node| node.target.thread_id)
+            .collect();
+        let peers: Vec<_> = peer_roots
+            .iter()
+            .copied()
+            .filter(|id| roots.contains(id))
+            .collect();
+        if let Some(&first) = peers.first() {
+            for &peer in &peers[1..] {
+                neighbors.entry(first).or_default().push(peer);
+                neighbors.entry(peer).or_default().push(first);
             }
         }
         let mut family = HashSet::new();
@@ -278,7 +303,53 @@ async fn load(app_server: &mut AppServerSession, current: Option<ThreadId>) -> R
         });
         pending.extend(parent);
     }
-    Ok(Tree::for_conversation(nodes, current))
+    let mut root = current;
+    let mut ancestors = HashSet::new();
+    while ancestors.insert(root) {
+        match nodes
+            .iter()
+            .find(|node| node.target.thread_id == root)
+            .and_then(|node| node.parent)
+        {
+            Some(parent) => root = parent,
+            None => break,
+        }
+    }
+    let peers = match app_server.sibling_root_peers(root).await {
+        Ok(peers) => peers,
+        Err(error) => {
+            tracing::warn!(%error, "Could not load sibling forest membership");
+            Vec::new()
+        }
+    };
+    for &id in &peers {
+        if nodes.iter().any(|node| node.target.thread_id == id) {
+            continue;
+        }
+        let thread = app_server.thread_read(id, false).await?;
+        let title = thread
+            .name
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| {
+                if thread.preview.trim().is_empty() {
+                    format!("Untitled · {id}")
+                } else {
+                    thread.preview
+                }
+            });
+        nodes.push(Node {
+            target: SessionTarget {
+                backend_id: app_server.backend_id(),
+                path: thread.path,
+                thread_id: id,
+                cwd: Some(thread.cwd.to_path_buf()),
+                history_mode: Some(thread.history_mode),
+            },
+            parent: None,
+            title,
+        });
+    }
+    Ok(Tree::for_conversation_with_roots(nodes, current, &peers))
 }
 
 struct Screen<'a>(&'a mut Tui);
@@ -329,7 +400,7 @@ pub(crate) async fn run(
             } else {
                 frame.render_widget_ref(&Paragraph::new("Loading saved conversations…"), body);
             }
-            frame.render_widget_ref(&Paragraph::new("↑/↓ select · ←/→ collapse/expand · Enter open · Esc back\n/branch [prompt] creates a child and starts your prompt"), footer);
+            frame.render_widget_ref(&Paragraph::new("↑/↓ select · ←/→ collapse/expand · Enter open · Esc back\n/branch [prompt]: child · /sibling [prompt]: peer with shared context"), footer);
         })?;
         tokio::select! {
             result = &mut loading, if tree.is_none() => {
@@ -375,6 +446,72 @@ pub(crate) async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sibling_roots_form_a_forest_without_reparenting_children() {
+        let first = ThreadId::new();
+        let second = ThreadId::new();
+        let child = ThreadId::new();
+        let unrelated = ThreadId::new();
+        let tree = Tree::for_conversation_with_roots(
+            vec![
+                node(first, None, "first"),
+                node(second, None, "second"),
+                node(child, Some(second), "child"),
+                node(unrelated, None, "unrelated"),
+            ],
+            child,
+            &[first, second, child],
+        );
+        let ids: HashSet<_> = tree
+            .nodes
+            .iter()
+            .map(|node| node.target.thread_id)
+            .collect();
+        assert_eq!(ids, HashSet::from([first, second, child]));
+        assert_eq!(tree.roots.len(), 2);
+        assert_eq!(
+            tree.nodes
+                .iter()
+                .find(|node| node.target.thread_id == child)
+                .unwrap()
+                .parent,
+            Some(second)
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_sibling_roots_remain_visible_in_saved_forest() -> Result<()> {
+        use crate::legacy_core::config::ConfigBuilder;
+        let home = tempfile::TempDir::new()?;
+        let config = ConfigBuilder::default()
+            .codex_home(home.path().to_path_buf())
+            .build()
+            .await?;
+        let mut server = crate::start_embedded_app_server_for_picker(&config).await?;
+        let first = server.start_thread(&config).await?.session.thread_id;
+        let second = server.start_thread(&config).await?.session.thread_id;
+        for (id, name) in [(first, "First"), (second, "Second")] {
+            server.thread_set_name(id, name.to_string()).await?;
+            server
+                .attach_sibling_group(
+                    id,
+                    codex_thread_store::sibling_context::SIBLING_ROOTS_ATTACHMENT,
+                    &first.to_string(),
+                )
+                .await?;
+        }
+        let tree = load(&mut server, Some(first)).await?;
+        assert_eq!(tree.roots.len(), 2);
+        let ids: HashSet<_> = tree
+            .nodes
+            .iter()
+            .map(|node| node.target.thread_id)
+            .collect();
+        assert_eq!(ids, HashSet::from([first, second]));
+        server.shutdown().await?;
+        Ok(())
+    }
 
     #[tokio::test]
     async fn load_fresh_conversation_uses_its_active_server() -> Result<()> {

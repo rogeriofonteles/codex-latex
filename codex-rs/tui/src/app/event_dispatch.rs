@@ -131,6 +131,7 @@ impl App {
                     | AppEvent::SelectAgentThread(_)
                     | AppEvent::StartSide { .. }
                     | AppEvent::ForkCurrentSession { .. }
+                    | AppEvent::CreateSibling { .. }
                     | AppEvent::StartManagedWorktree {
                         mode: crate::app_event::ManagedWorktreeMode::Fork,
                         ..
@@ -712,6 +713,14 @@ impl App {
                     self.chat_widget.maybe_send_next_queued_input();
                 }
                 tui.frame_requester().schedule_frame();
+            }
+            AppEvent::CreateSibling { initial_user_message } => {
+                if let Err(error) = self.create_sibling(tui, app_server, initial_user_message.clone()).await {
+                    if let Some(message) = initial_user_message {
+                        self.chat_widget.restore_user_message_to_composer(message);
+                    }
+                    self.chat_widget.add_error_message(format!("Could not create sibling: {error}"));
+                }
             }
             AppEvent::RevertSessionForPromptEdit {
                 thread_id,

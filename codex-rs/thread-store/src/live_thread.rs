@@ -132,6 +132,10 @@ impl Drop for LiveThreadInitGuard {
 }
 
 impl LiveThread {
+    pub async fn sibling_context(&self) -> ThreadStoreResult<Option<String>> {
+        crate::sibling_context::sibling_context(self.thread_store.as_ref(), self.thread_id).await
+    }
+
     pub async fn create(
         thread_store: Arc<dyn ThreadStore>,
         params: CreateThreadParams,

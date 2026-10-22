@@ -1701,6 +1701,8 @@ pub(crate) fn build_prompt(
     }
 }
 
+struct SiblingContextSnapshot(Option<ResponseItem>);
+
 #[allow(clippy::too_many_arguments)]
 #[allow(deprecated)]
 #[instrument(level = "trace",
@@ -1720,6 +1722,31 @@ async fn run_sampling_request(
     input: Vec<ResponseItem>,
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
+    let sibling_context = match turn_store.get::<SiblingContextSnapshot>() {
+        Some(snapshot) => snapshot,
+        None => {
+            let text = match sess.live_thread() {
+                Some(thread) => thread.sibling_context().await.map_err(|error| {
+                    CodexErr::Fatal(format!("Could not load shared sibling context: {error}"))
+                })?,
+                None => None,
+            };
+            turn_store.insert(SiblingContextSnapshot(text.map(|text| {
+                ResponseItem::Message {
+                    encrypted_content: None,
+                    status: None,
+                    id: None,
+                    role: "user".to_string(),
+                    content: vec![ContentItem::InputText { text }],
+                    phase: None,
+                    internal_chat_message_metadata_passthrough: None,
+                }
+            })));
+            turn_store
+                .get::<SiblingContextSnapshot>()
+                .expect("inserted sibling snapshot")
+        }
+    };
     let turn_context = Arc::clone(&step_context.turn);
     let preempt = step_context.preempt.clone().unwrap_or_default();
     let _input_watch = if let Some(preempt) = &step_context.preempt {
@@ -1780,7 +1807,10 @@ async fn run_sampling_request(
             )
             .await?;
         }
-        let err = match try_run_sampling_request(
+        if let Some(context) = &sibling_context.0 {
+            prompt.input.insert(0, context.clone());
+        }
+        let outcome = try_run_sampling_request(
             tool_runtime.clone(),
             Arc::clone(&sess),
             Arc::clone(&step_context),
@@ -1791,8 +1821,12 @@ async fn run_sampling_request(
             &prompt,
             cancellation_token.child_token(),
         )
-        .await
-        {
+        .await;
+        // Peer history is request-only: compaction, persistence and forks keep this chat's own history.
+        if sibling_context.0.is_some() {
+            prompt.input.remove(0);
+        }
+        let err = match outcome {
             Ok(output) => {
                 return Ok((output, original_input.unwrap_or(prompt.input)));
             }

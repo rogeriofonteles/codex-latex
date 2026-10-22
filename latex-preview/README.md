@@ -120,9 +120,30 @@ directory. You can branch again inside a child, or return to its parent and
 create additional sibling conversations.
 Use `/rename` to change the current conversation's title.
 
+Use `/sibling [prompt]` to create a peer conversation at the same depth. From a
+root chat, it creates another root in the same forest. From a child, it creates
+another child of the same parent. An optional prompt starts immediately and
+generates the new chat's title, just like `/branch`.
+
+Launch this build with `codex-latex --no-daemon` to use live sibling context.
+The command requires the matching local backend; it refuses older or remote
+background servers rather than creating a group whose context they cannot share.
+Resume saved group members in the same updated build when continuing them.
+
+Sibling context is live: before each new turn, the model receives the completed
+turns from the other chats in that sibling group alongside its own history.
+In-progress turns and descendants are excluded. The shared material is not
+stored in the receiving chat's history or copied into its children. For example,
+root chats A and B share context, but a child of B inherits B's own history and
+does not receive A's history. Creating a sibling for that child enables sharing
+among B's children while keeping their context separate from the root group.
+Sibling membership survives restarts, and `/tree` shows linked root chats as a
+forest with each root's own descendants.
+
 Use `/tree` to browse the current chat's family of saved, non-archived
 conversations. From any child, it shows the root parent and all sibling and nested
-branches. Unrelated chats are hidden. The current chat is marked with
+branches, including linked sibling roots and their descendants. Unrelated chats
+are hidden. The current chat is marked with
 `← current` and selected automatically when the tree opens:
 
 - **Up/Down:** select a conversation.

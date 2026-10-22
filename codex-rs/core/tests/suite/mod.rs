@@ -211,6 +211,7 @@ mod search_tool;
 mod settings_commits;
 mod settings_constraints;
 mod shell_snapshot;
+mod sibling_context;
 mod skills;
 mod skills_extension;
 mod spawn_agent_description;

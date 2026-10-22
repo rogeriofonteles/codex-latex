@@ -640,6 +640,9 @@ pub(crate) enum AppEvent {
     /// Open the resume picker inside the running TUI session.
     OpenResumePicker,
     OpenConversationTree,
+    CreateSibling {
+        initial_user_message: Option<crate::chatwidget::UserMessage>,
+    },
 
     /// Open the Claude Code migration picker inside the running TUI session.
     OpenExternalAgentConfigMigration,

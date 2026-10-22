@@ -48,6 +48,7 @@ pub enum SlashCommand {
     Goal,
     Agents,
     Side,
+    Sibling,
     Btw,
     Copy,
     Export,
@@ -108,6 +109,7 @@ impl SlashCommand {
             SlashCommand::Clear => "clear the terminal and start a new chat",
             SlashCommand::Fork => "fork the current chat",
             SlashCommand::Branch => "branch this chat and start with an optional prompt",
+            SlashCommand::Sibling => "create a peer chat with live shared sibling context",
             SlashCommand::Tree => "browse the current chat's conversation tree",
             SlashCommand::Worktree => "start or continue a conversation in a new worktree",
             SlashCommand::App => "continue this session in the Desktop app",
@@ -186,6 +188,7 @@ impl SlashCommand {
                 | SlashCommand::Clear
                 | SlashCommand::Fork
                 | SlashCommand::Branch
+                | SlashCommand::Sibling
                 | SlashCommand::Plan
                 | SlashCommand::Goal
                 | SlashCommand::Voice
@@ -258,6 +261,7 @@ impl SlashCommand {
             | SlashCommand::Delete
             | SlashCommand::Fork
             | SlashCommand::Branch
+            | SlashCommand::Sibling
             | SlashCommand::Worktree
             | SlashCommand::Init
             | SlashCommand::Compact

@@ -10,6 +10,7 @@ mod live_thread;
 mod local;
 mod projects;
 mod queue_store;
+pub mod sibling_context;
 mod store;
 mod thread_attachments;
 mod thread_metadata_sync;

@@ -3898,6 +3898,35 @@ async fn slash_branch_requests_current_fork() {
 }
 
 #[tokio::test]
+async fn slash_sibling_preserves_optional_prompt_for_new_chat() {
+    for prompt in [None, Some("Explain the cache invalidation")] {
+        let (mut chat, mut events, mut ops) = make_chatwidget_manual(None).await;
+        match prompt {
+            Some(prompt) => chat.dispatch_command_with_args(
+                SlashCommand::Sibling,
+                prompt.to_string(),
+                Vec::new(),
+            ),
+            None => chat.dispatch_command(SlashCommand::Sibling),
+        }
+        let event = events.try_recv().expect("sibling event");
+        let AppEvent::CreateSibling {
+            initial_user_message,
+        } = event
+        else {
+            panic!("expected sibling creation, got {event:?}");
+        };
+        assert_eq!(
+            initial_user_message
+                .as_ref()
+                .map(|message| message.text.as_str()),
+            prompt
+        );
+        assert_matches!(ops.try_recv(), Err(TryRecvError::Empty));
+    }
+}
+
+#[tokio::test]
 async fn slash_branch_with_prompt_submits_only_to_unnamed_fork() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.bottom_pane
