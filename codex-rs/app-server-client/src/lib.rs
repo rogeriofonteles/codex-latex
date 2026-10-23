@@ -740,6 +740,13 @@ impl AppServerRequestHandle {
 }
 
 impl AppServerClient {
+    pub fn supports_sibling_context(&self) -> bool {
+        match self {
+            Self::InProcess(_) => true,
+            Self::Remote(client) => client.supports_sibling_context(),
+        }
+    }
+
     /// App-server platform family, which can differ from the executor's platform.
     /// Older remote servers may omit this metadata.
     pub fn platform_family(&self) -> Option<&str> {
@@ -1427,6 +1434,28 @@ mod tests {
                 (client.platform_family(), client.platform_os()),
                 (family, os)
             );
+            client.shutdown().await.expect("shutdown should complete");
+        }
+    }
+
+    #[tokio::test]
+    async fn sibling_context_requires_explicit_backend_support() {
+        for support in [None, Some(false), Some(true)] {
+            let websocket_url = start_test_remote_server(move |mut websocket| async move {
+                let mut metadata = serde_json::json!({});
+                if let Some(support) = support {
+                    metadata["supportsSiblingContext"] = support.into();
+                }
+                expect_remote_initialize_with_metadata(&mut websocket, metadata).await;
+                websocket.close(None).await.expect("close should succeed");
+            })
+            .await;
+            let client = AppServerClient::Remote(
+                RemoteAppServerClient::connect(test_remote_connect_args(websocket_url))
+                    .await
+                    .expect("remote client should connect"),
+            );
+            assert_eq!(client.supports_sibling_context(), support == Some(true));
             client.shutdown().await.expect("shutdown should complete");
         }
     }

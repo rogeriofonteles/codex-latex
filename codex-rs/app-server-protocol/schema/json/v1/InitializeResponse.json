@@ -23,6 +23,13 @@
       "description": "Operating system for the running app-server target, for example `\"macos\"`, `\"linux\"`, or `\"windows\"`.",
       "type": "string"
     },
+    "supportsSiblingContext": {
+      "description": "Whether this backend loads live peer context for sibling conversations.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "userAgent": {
       "type": "string"
     }

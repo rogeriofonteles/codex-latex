@@ -152,6 +152,7 @@ enum RemoteClientCommand {
 
 #[derive(Default)]
 struct RemoteServerMetadata {
+    supports_sibling_context: bool,
     server_version: Option<String>,
     codex_home: Option<String>,
     platform_family: Option<String>,
@@ -218,6 +219,10 @@ impl RemoteAppServerClient {
                     .await
             }
         }
+    }
+
+    pub fn supports_sibling_context(&self) -> bool {
+        self.metadata.supports_sibling_context
     }
 
     pub fn server_version(&self) -> Option<&str> {
@@ -873,6 +878,8 @@ where
                     })?;
                     match message {
                         JSONRPCMessage::Response(response) if response.id == initialize_request_id => {
+                            metadata.supports_sibling_context = response.result.get("supportsSiblingContext")
+                                .and_then(serde_json::Value::as_bool).unwrap_or(false);
                             metadata.server_version = response
                                 .result
                                 .get("userAgent")

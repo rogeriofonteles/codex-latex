@@ -125,10 +125,33 @@ root chat, it creates another root in the same forest. From a child, it creates
 another child of the same parent. An optional prompt starts immediately and
 generates the new chat's title, just like `/branch`.
 
-Launch this build with `codex-latex --no-daemon` to use live sibling context.
-The command requires the matching local backend; it refuses older or remote
-background servers rather than creating a group whose context they cannot share.
-Resume saved group members in the same updated build when continuing them.
+Live sibling context works with this build's embedded backend and shared
+app-server. `/sibling` checks the backend's `supportsSiblingContext` initialize
+capability before changing conversation membership. Stock or older servers that
+do not advertise it are rejected with instructions to use an updated backend.
+All clients continuing saved group members must use a supporting backend.
+
+To share a backend without `--no-daemon`, build the fork and run its app-server
+in a dedicated terminal, then connect clients to the same socket:
+
+```sh
+# Backend terminal, from the repository root:
+./bin/codex app-server --listen unix:///tmp/codex-latex.sock
+
+# Client terminals:
+codex-latex --remote unix:///tmp/codex-latex.sock
+codex-latex --remote unix:///tmp/codex-latex.sock resume
+```
+
+The server continues running when a client exits. Keep it running to preserve
+active work. For automatic default-daemon attachment, the managed daemon package
+must also be built from this fork; rebuilding the CLI alone does not replace an
+existing stock daemon. Assemble a [canonical package](../scripts/codex_package/README.md)
+and run its `bin/codex app-server daemon update --from-cli` command. This selects
+and pins the fork package and restarts a running daemon, so finish active work
+first. A production `daemon update` replaces the fork with a stock backend.
+`codex-latex --no-daemon` remains available for an embedded backend that uses the
+CLI's build directly.
 
 Sibling context is live: before each new turn, the model receives the completed
 turns from the other chats in that sibling group alongside its own history.

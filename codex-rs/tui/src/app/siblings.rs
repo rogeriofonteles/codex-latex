@@ -35,9 +35,9 @@ impl App {
         server: &mut AppServerSession,
         initial_user_message: Option<UserMessage>,
     ) -> Result<()> {
-        if !server.uses_embedded_app_server() {
+        if !server.supports_sibling_context() {
             bail!(
-                "Live sibling context requires this build's local backend. Restart with codex-latex --no-daemon, then resume this chat."
+                "This backend does not support live sibling context. Use a shared daemon built from codex-latex, or restart with --no-daemon, then resume this chat."
             );
         }
         let Some(source_id) = self.chat_widget.thread_id() else {

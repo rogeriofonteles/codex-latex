@@ -4,6 +4,7 @@ use super::connection_handling_websocket::DEFAULT_READ_TIMEOUT;
 use super::connection_handling_websocket::connect_websocket;
 use super::connection_handling_websocket::read_jsonrpc_message;
 use super::connection_handling_websocket::read_notification_for_method;
+use super::connection_handling_websocket::read_response_and_notification_for_method;
 use super::connection_handling_websocket::read_response_for_id;
 use super::connection_handling_websocket::send_initialize_request;
 use super::connection_handling_websocket::send_request;
@@ -38,10 +39,101 @@ use codex_app_server_protocol::ThreadListResponse;
 use codex_app_server_protocol::ThreadLoadedListParams;
 use codex_app_server_protocol::ThreadLoadedListResponse;
 use codex_features::Feature;
+use codex_thread_store::sibling_context::SIBLING_ROOTS_ATTACHMENT;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
 use tokio::time::timeout;
+
+#[tokio::test]
+async fn shared_backend_loads_live_sibling_context_across_clients() -> Result<()> {
+    let responses = create_mock_responses_server_repeating_assistant("Done").await;
+    let codex_home = TempDir::new()?;
+    MockResponsesConfig::new(&responses.uri())
+        .enable_feature(Feature::Sqlite)
+        .write(codex_home.path())?;
+    let (mut process, address) = spawn_websocket_server(codex_home.path()).await?;
+    let mut first = connect_websocket(address).await?;
+    let mut second = connect_websocket(address).await?;
+    let mut threads = Vec::new();
+    for (client, marker) in [
+        (&mut first, "ALPHA_PEER_ONLY"),
+        (&mut second, "BETA_OWN_HISTORY"),
+    ] {
+        send_request(
+            client,
+            "initialize",
+            1,
+            Some(json!({
+                "clientInfo": {"name": "sibling_client", "version": "1.0.0"},
+                "capabilities": {"experimentalApi": true}
+            })),
+        )
+        .await?;
+        let initialized = read_response_for_id(client, 1).await?;
+        assert_eq!(initialized.result["supportsSiblingContext"], true);
+        send_request(
+            client,
+            "thread/start",
+            2,
+            Some(json!({"historyMode": "paginated"})),
+        )
+        .await?;
+        let started = read_response_for_id(client, 2).await?;
+        let thread = started.result["thread"]["id"]
+            .as_str()
+            .context("thread id")?
+            .to_owned();
+        send_sibling_test_turn(client, &thread, 3, marker).await?;
+        threads.push(thread);
+    }
+    for (client, thread) in [(&mut first, &threads[0]), (&mut second, &threads[1])] {
+        send_request(
+            client,
+            "thread/attachment/add",
+            4,
+            Some(json!({
+                "threadId": thread,
+                "attachmentType": SIBLING_ROOTS_ATTACHMENT,
+                "identityKey": threads[0],
+                "payload": {"version": 1}
+            })),
+        )
+        .await?;
+        read_response_for_id(client, 4).await?;
+    }
+    first.close(None).await?;
+    send_sibling_test_turn(&mut second, &threads[1], 5, "READ_LIVE_PEER_CONTEXT").await?;
+    let requests = responses
+        .received_requests()
+        .await
+        .context("recorded model requests")?;
+    let latest = requests
+        .iter()
+        .rev()
+        .find(|request| request.url.path().ends_with("/responses"))
+        .context("model request")?;
+    let body: serde_json::Value = serde_json::from_slice(&latest.body)?;
+    let input = body["input"].to_string();
+    assert!(input.contains("ALPHA_PEER_ONLY"), "{input}");
+    assert!(input.contains("BETA_OWN_HISTORY"), "{input}");
+    send_request(
+        &mut second,
+        "thread/read",
+        6,
+        Some(json!({"threadId": threads[1], "includeTurns": true})),
+    )
+    .await?;
+    let saved = read_response_for_id(&mut second, 6).await?;
+    assert!(
+        !saved.result["thread"]["turns"]
+            .to_string()
+            .contains("ALPHA_PEER_ONLY")
+    );
+    second.close(None).await?;
+    process.kill().await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn thread_attachments_support_unloaded_listing_and_idempotent_attachment() -> Result<()> {
@@ -603,4 +695,29 @@ async fn thread_attachment_mutations_respond_before_broadcasting_updates_to_mult
         .await
         .context("failed to stop websocket app-server process")?;
     result
+}
+
+async fn send_sibling_test_turn(
+    client: &mut super::connection_handling_websocket::WsClient,
+    thread: &str,
+    id: i64,
+    text: &str,
+) -> Result<()> {
+    send_request(
+        client,
+        "turn/start",
+        id,
+        Some(json!({
+            "threadId": thread,
+            "input": [{"type": "text", "text": text}]
+        })),
+    )
+    .await?;
+    let (_, completed) =
+        read_response_and_notification_for_method(client, id, "turn/completed").await?;
+    assert_eq!(
+        completed.params.context("turn completed params")?["turn"]["status"],
+        "completed"
+    );
+    Ok(())
 }

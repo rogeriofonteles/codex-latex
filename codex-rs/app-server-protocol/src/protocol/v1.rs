@@ -73,6 +73,10 @@ pub struct InitializeCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct InitializeResponse {
     pub user_agent: String,
+    /// Whether this backend loads live peer context for sibling conversations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub supports_sibling_context: Option<bool>,
     /// Absolute path to the server's $CODEX_HOME directory.
     pub codex_home: AbsolutePathBuf,
     /// Platform family for the running app-server target, for example

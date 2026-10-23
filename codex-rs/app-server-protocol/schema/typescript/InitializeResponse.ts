@@ -5,6 +5,10 @@ import type { AbsolutePathBuf } from "./AbsolutePathBuf";
 
 export type InitializeResponse = { userAgent: string,
 /**
+ * Whether this backend loads live peer context for sibling conversations.
+ */
+supportsSiblingContext?: boolean,
+/**
  * Absolute path to the server's $CODEX_HOME directory.
  */
 codexHome: AbsolutePathBuf,

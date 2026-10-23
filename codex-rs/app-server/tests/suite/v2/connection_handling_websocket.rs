@@ -79,6 +79,7 @@ async fn websocket_transport_routes_per_connection_handshake_and_responses() -> 
     send_initialize_request(&mut ws1, /*id*/ 1, "ws_client_one").await?;
     let first_init = read_response_for_id(&mut ws1, /*id*/ 1).await?;
     assert_eq!(first_init.id, RequestId::Integer(1));
+    assert_eq!(first_init.result["supportsSiblingContext"], true);
 
     // Initialize responses are request-scoped and must not leak to other
     // connections.

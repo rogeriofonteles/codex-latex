@@ -610,6 +610,10 @@ impl AppServerSession {
         matches!(self.thread_params_mode, ThreadParamsMode::Remote)
     }
 
+    pub(crate) fn supports_sibling_context(&self) -> bool {
+        self.client.supports_sibling_context()
+    }
+
     pub(crate) fn uses_embedded_app_server(&self) -> bool {
         matches!(&self.client, AppServerClient::InProcess(_))
     }
